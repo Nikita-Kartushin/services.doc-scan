@@ -1,0 +1,22 @@
+build-test:
+  image: docker:master
+  stage: build-test
+  tags:
+    - crm.builder
+  only:
+    - /^test-\d{4}\.\d+\.([\da-z]+)$/
+  script:
+    - docker login -u gitlab-ci-token -p $CI_BUILD_TOKEN $CI_REGISTRY
+    - docker build --build-arg SSH_PRIVATE_KEY="$SSH_PRIVATE_KEY"
+                   -t $CONTAINER_TEST_IMAGE .
+    - docker push $CONTAINER_TEST_IMAGE
+
+deploy-test:
+  image: docker:master
+  stage: deploy-test
+  tags:
+    - billing.deploy.k8n
+  only:
+    - /^test-\d{4}\.\d+\.([\da-z]+)$/
+  script:
+    - /opt/ks-test.sh erp deployment/services-doc-scan services-doc-scan $CONTAINER_TEST_IMAGE

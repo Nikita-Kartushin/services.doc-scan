@@ -1,0 +1,38 @@
+build-dev:
+  image: docker:master
+  stage: build-dev
+  tags:
+    - crm.builder
+  only:
+    - develop
+  script:
+    - docker login -u gitlab-ci-token -p $CI_BUILD_TOKEN $CI_REGISTRY
+    - docker build --build-arg SSH_PRIVATE_KEY="$SSH_PRIVATE_KEY"
+                   -t $CONTAINER_DEV_IMAGE .
+    - docker push $CONTAINER_DEV_IMAGE
+
+deploy-dev:
+  image: docker:master
+  stage: deploy-dev
+  tags:
+    - crm.deployer:stage
+  only:
+    - develop
+  script:
+    - docker login -u gitlab-ci-token -p $CI_BUILD_TOKEN $CI_REGISTRY
+    - docker stop services.doc-scan.dev 2>/dev/null || true
+    - docker rm -f services.doc-scan.dev 2>/dev/null || true
+    - docker pull $CONTAINER_DEV_IMAGE
+    - docker run -d --network private-net
+          --name services.doc-scan.dev
+          -p 127.0.0.1:6060:6060
+          -v /etc/timezone:/etc/timezone:ro
+          -v /etc/localtime:/etc/localtime:ro
+          -v /data/docs/:/data/docs/
+          -v /data/logs/services.doc-scan.dev:$APP_PATH/logs
+          -v /data/app.configs/develop/common:$APP_PATH/config/common:ro
+          -v /data/app.configs/develop/services.doc-scan/app.configs:$APP_PATH/config/app.configs:ro
+          -v /data/app.configs/develop/services.doc-scan/app.queues:$APP_PATH/config/app.queues:ro
+          --restart always
+          $CONTAINER_DEV_IMAGE
+
